@@ -6,11 +6,11 @@ services:
   - type: web
     name: livekit-sarvam-agent
     runtime: docker
-    repo: https://github.com/YOUR_USERNAME/livekit_sarvam_agent # Update this!
+    repo: https://github.com/SrinathS-21/Multi-Language-Voice-Agent.git
     region: singapore # Closest to India (Mumbai not available)
-    plan: starter # $7/month - does NOT sleep (important for voice agents)
+    plan: starter # $7/month - does NOT sleep (important for API availability)
     branch: main
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.api  # Use API-only Dockerfile
     dockerContext: .
     
     # Health check configuration (keeps service alive)

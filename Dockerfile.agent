@@ -1,12 +1,11 @@
-# Multi-stage build for Node.js/TypeScript LiveKit Agent
+# Optimized Dockerfile for LiveKit Cloud Agent ONLY
 FROM node:20-alpine AS base
 
-# Install dependencies only when needed
+# Install dependencies
 FROM base AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
-# Copy package files
 COPY package.json package-lock.json* ./
 RUN npm ci
 
@@ -18,15 +17,13 @@ COPY . .
 
 # Build TypeScript
 RUN npm run build
-# Note: Model files download automatically on first startup (EOU/VAD models)
-# The @livekit/agents SDK handles this via @huggingface/transformers
 
-# Production image
+# Production image - AGENT ONLY
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-# Allow Hugging Face model downloads at runtime (EOU/VAD models)
+# Allow Hugging Face model downloads at runtime
 ENV HF_HUB_OFFLINE=0
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
@@ -34,16 +31,15 @@ ENV HF_HUB_ENABLE_HF_TRANSFER=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 agent
 
-# Copy built application with proper ownership (avoids slow chown)
+# Copy only agent files with proper ownership
 COPY --from=builder --chown=agent:nodejs /app/dist ./dist
 COPY --from=builder --chown=agent:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=agent:nodejs /app/package.json ./
-COPY --from=builder --chown=agent:nodejs /app/start-production.js ./
 
 USER agent
 
-# Expose API port
-EXPOSE 8000
+# Health check port (LiveKit agent uses 8080 for health)
+EXPOSE 8080
 
-# Run both API and Agent
-CMD ["npm", "start"]
+# Start ONLY the agent worker
+CMD ["node", "dist/src/agent/index.js", "start"]

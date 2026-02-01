@@ -1,0 +1,45 @@
+# Optimized Dockerfile for Render Backend API ONLY
+FROM node:20-alpine AS base
+
+# Install dependencies
+FROM base AS deps
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Build stage
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# Production image - API ONLY
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+# Allow Hugging Face model downloads at runtime (for Convex functions)
+ENV HF_HUB_OFFLINE=0
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 apiuser
+
+# Copy only API files with proper ownership
+COPY --from=builder --chown=apiuser:nodejs /app/dist ./dist
+COPY --from=builder --chown=apiuser:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=apiuser:nodejs /app/package.json ./
+
+USER apiuser
+
+# Expose API port
+EXPOSE 8000
+
+# Start ONLY the API server
+CMD ["node", "dist/src/api/server.js"]
