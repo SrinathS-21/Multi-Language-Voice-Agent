@@ -1,0 +1,43 @@
+services:
+  livekit-server:
+    image: livekit/livekit-server:latest
+    container_name: livekit-server
+    command: --config /etc/livekit.yaml --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880"  # HTTP
+      - "7881:7881"  # TCP
+      - "7882:7882/udp"  # UDP for WebRTC
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    environment:
+      - LIVEKIT_LOG_LEVEL=info
+    restart: unless-stopped
+
+  # Voice agent worker
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livekit-sarvam-agent
+    command: npm start
+    environment:
+      - NODE_ENV=production
+      - LIVEKIT_URL=${LIVEKIT_URL:-ws://livekit-server:7880}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - SARVAM_API_KEY=${SARVAM_API_KEY}
+      - SARVAM_STT_MODEL=${SARVAM_STT_MODEL:-saarika:v2}
+      - SARVAM_TTS_MODEL=${SARVAM_TTS_MODEL:-bulbul:v1}
+      - SARVAM_TTS_SPEAKER=${SARVAM_TTS_SPEAKER:-meera}
+      - SARVAM_LLM_MODEL=${SARVAM_LLM_MODEL:-sarvam-2b}
+      - SARVAM_LANGUAGE=${SARVAM_LANGUAGE:-en-IN}
+    depends_on:
+      - livekit-server
+    restart: unless-stopped
+
+  # Optional: Redis for multi-node setups
+  # redis:
+  #   image: redis:alpine
+  #   container_name: livekit-redis
+  #   ports:
+  #     - "6379:6379"

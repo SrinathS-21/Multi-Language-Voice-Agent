@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-01-13T12:14:13.059Z",
+  "organization": {
+    "id": "jx7fk17xh1zcdy9zg2f4k5avc57z4q21",
+    "name": "Kaanchi Cuisine Restaurant",
+    "slug": "kaanchi-cuisine"
+  },
+  "agent": {
+    "id": "j578ghxg5ntq9m3f3cyemcgm5h7z59y7",
+    "name": "Sophia",
+    "role": "Restaurant Assistant"
+  },
+  "convexUrl": "https://adorable-sardine-831.convex.cloud",
+  "livekitUrl": "wss://sarvam-voice-agent-mup5eafk.livekit.cloud"
+}

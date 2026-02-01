@@ -1,0 +1,70 @@
+# Render.com deployment configuration
+# Comprehensive setup for LiveKit Sarvam Agent with health checks
+
+services:
+  # Main LiveKit Agent Service
+  - type: web
+    name: livekit-sarvam-agent
+    runtime: docker
+    repo: https://github.com/YOUR_USERNAME/livekit_sarvam_agent # Update this!
+    region: singapore # Closest to India (Mumbai not available)
+    plan: starter # $7/month - does NOT sleep (important for voice agents)
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    
+    # Health check configuration (keeps service alive)
+    healthCheckPath: /health
+    
+    # Auto-deploy on push
+    autoDeploy: true
+    
+    # Environment variables (set these in Render Dashboard)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: HEALTH_PORT
+        value: 8080
+      
+      # LiveKit Configuration (add in Dashboard as secrets)
+      - key: LIVEKIT_URL
+        sync: false # Set manually in dashboard
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      
+      # AI Provider Keys (add in Dashboard as secrets)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      
+      # Convex Database (add in Dashboard as secrets)
+      - key: CONVEX_URL
+        sync: false
+      - key: CONVEX_DEPLOY_KEY
+        sync: false
+      
+      # Optional: Telephony (add if using Twilio)
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+
+  # Cron Job to keep service alive (backup - Starter plan shouldn't sleep)
+  - type: cron
+    name: keep-alive-ping
+    runtime: node
+    schedule: "*/5 * * * *" # Every 5 minutes
+    buildCommand: echo "Cron job - no build needed"
+    startCommand: "curl -f https://livekit-sarvam-agent.onrender.com/health || exit 0"
+    repo: https://github.com/YOUR_USERNAME/livekit_sarvam_agent # Update this!
+    branch: main
+    
+    # Environment variables for cron
+    envVars:
+      - key: SERVICE_URL
+        value: https://livekit-sarvam-agent.onrender.com # Update after deployment!

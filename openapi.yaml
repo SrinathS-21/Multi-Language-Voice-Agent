@@ -1,0 +1,1450 @@
+openapi: 3.0.3
+info:
+  title: LiveKit Sarvam Voice Agent API
+  description: |
+    REST API for managing voice agents, knowledge bases, sessions, and analytics.
+    
+    ## Features
+    - **Voice Agent Management** - Create and manage AI voice agents
+    - **Knowledge Base** - Upload documents and search with RAG
+    - **Session Management** - Track voice call sessions
+    - **Analytics** - Monitor performance and business metrics
+    - **Multi-tenant** - Organization-based isolation
+    
+    ## Authentication
+    Currently using organization/tenant IDs for access control.
+    Future versions will include API key authentication.
+    
+    ## Base URL
+    - Development: `http://localhost:8000`
+    - Production: `https://your-domain.com`
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.yourdomain.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check and monitoring endpoints
+  - name: Organizations
+    description: Multi-tenant organization management
+  - name: Agents
+    description: Voice agent CRUD operations
+  - name: Sessions
+    description: Call session lifecycle management
+  - name: Calls
+    description: Call history and transcripts
+  - name: Knowledge
+    description: Document ingestion and RAG search
+  - name: Analytics
+    description: Performance metrics and business intelligence
+
+paths:
+  /:
+    get:
+      tags: [Health]
+      summary: Root API information
+      description: Get service information and version
+      responses:
+        '200':
+          description: Service information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: livekit-sarvam-agent
+                  version:
+                    type: string
+                    example: 0.3.0
+                  status:
+                    type: string
+                    example: running
+                  environment:
+                    type: string
+                    enum: [development, production]
+                  documentation:
+                    type: string
+                    example: /health
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      description: Simple health check to verify service is running
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      description: Check if service is ready with all dependencies
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessCheck'
+        '503':
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessCheck'
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      description: Get metrics in Prometheus format
+      responses:
+        '200':
+          description: Metrics data
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP agent_uptime_seconds Agent uptime in seconds
+                  # TYPE agent_uptime_seconds gauge
+                  agent_uptime_seconds 3600
+
+  /api/v1/organizations/create:
+    post:
+      tags: [Organizations]
+      summary: Create organization
+      description: Create a new organization (tenant)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, name]
+              properties:
+                slug:
+                  type: string
+                  description: Unique identifier slug
+                  example: acme-corp
+                name:
+                  type: string
+                  description: Organization display name
+                  example: Acme Corporation
+                config:
+                  type: object
+                  description: Optional configuration JSON
+      responses:
+        '200':
+          description: Organization created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organization_id:
+                    type: string
+                    example: j57abc123def
+                  slug:
+                    type: string
+                    example: acme-corp
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/organizations:
+    get:
+      tags: [Organizations]
+      summary: List organizations
+      description: Get all organizations with pagination
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+          description: Maximum number of results
+      responses:
+        '200':
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organization'
+                  total:
+                    type: integer
+                    example: 42
+
+  /api/v1/organizations/{id}:
+    get:
+      tags: [Organizations]
+      summary: Get organization by ID
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/organizations/slug/{slug}:
+    get:
+      tags: [Organizations]
+      summary: Get organization by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          example: acme-corp
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/agents/create:
+    post:
+      tags: [Agents]
+      summary: Create voice agent
+      description: Create a new AI voice agent configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, name, system_prompt]
+              properties:
+                tenant_id:
+                  type: string
+                  description: Organization ID or slug
+                  example: acme-corp
+                name:
+                  type: string
+                  description: Agent display name
+                  example: Customer Support Bot
+                role:
+                  type: string
+                  description: Agent role description
+                  example: customer support
+                system_prompt:
+                  type: string
+                  description: System instructions for the AI
+                  example: You are a helpful customer support assistant...
+                config:
+                  type: object
+                  description: Optional configuration (voice settings, etc.)
+      responses:
+        '200':
+          description: Agent created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id:
+                    type: string
+                    example: j57def456ghi
+                  name:
+                    type: string
+                    example: Customer Support Bot
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/agents:
+    get:
+      tags: [Agents]
+      summary: List agents
+      description: Get all agents for an organization
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Organization ID or slug
+          example: acme-corp
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Agent'
+
+  /api/v1/agents/{id}:
+    get:
+      tags: [Agents]
+      summary: Get agent by ID
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags: [Agents]
+      summary: Update agent
+      description: Update agent configuration
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                system_prompt:
+                  type: string
+                config:
+                  type: object
+      responses:
+        '200':
+          description: Agent updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id:
+                    type: string
+                  updated:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags: [Agents]
+      summary: Delete agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/agents/bind_number:
+    post:
+      tags: [Agents]
+      summary: Bind phone number
+      description: Associate a phone number with an agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, phone_number]
+              properties:
+                agent_id:
+                  type: string
+                phone_number:
+                  type: string
+                  example: +1234567890
+      responses:
+        '200':
+          description: Phone number bound successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bound:
+                    type: boolean
+                    example: true
+
+  /api/v1/sessions/create:
+    post:
+      tags: [Sessions]
+      summary: Create session
+      description: Create a new voice call session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id, agent_id]
+              properties:
+                organization_id:
+                  type: string
+                agent_id:
+                  type: string
+                call_type:
+                  type: string
+                  enum: [inbound, outbound, web]
+                  default: web
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                    example: sess_abc123xyz
+                  room_name:
+                    type: string
+                    example: room_abc123
+                  token:
+                    type: string
+                    description: LiveKit access token
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: Get session by ID
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/sessions:
+    get:
+      tags: [Sessions]
+      summary: List sessions
+      description: Get sessions for an organization
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+
+  /api/v1/sessions/{id}/end:
+    put:
+      tags: [Sessions]
+      summary: End session
+      description: Mark a session as completed
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session ended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                  status:
+                    type: string
+                    example: completed
+
+  /api/v1/calls:
+    get:
+      tags: [Calls]
+      summary: List calls
+      description: Get call history
+      parameters:
+        - name: organization_id
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of calls
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  calls:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CallSummary'
+
+  /api/v1/calls/{session_id}:
+    get:
+      tags: [Calls]
+      summary: Get call details
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Call details with interactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallDetails'
+
+  /api/v1/calls/{session_id}/transcript:
+    get:
+      tags: [Calls]
+      summary: Get call transcript
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Full conversation transcript
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                  transcript:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp:
+                          type: number
+                        role:
+                          type: string
+                          enum: [user, agent]
+                        content:
+                          type: string
+
+  /api/v1/knowledge/upload:
+    post:
+      tags: [Knowledge]
+      summary: Upload document
+      description: Ingest document into knowledge base for RAG
+      parameters:
+        - name: agent_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file (PDF, TXT, MD, etc.)
+                organization_id:
+                  type: string
+                metadata:
+                  type: string
+                  description: JSON metadata
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  description: Raw text content
+                file_name:
+                  type: string
+                organization_id:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: Document ingested successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document_id:
+                    type: string
+                  chunks:
+                    type: integer
+                    description: Number of chunks created
+                  status:
+                    type: string
+                    example: ingested
+
+  /api/v1/knowledge/chunks:
+    post:
+      tags: [Knowledge]
+      summary: Upload formatted chunks
+      description: Direct ingestion of pre-validated JSON chunks into RAG knowledge base.
+      parameters:
+        - name: agent_id
+          in: query
+          required: true
+          schema:
+            type: string
+            description: The agent ID to ingest chunks for
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/KnowledgeChunk'
+                - type: object
+                  properties:
+                    chunks:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/KnowledgeChunk'
+      responses:
+        '200':
+          description: Chunks ingested successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  ingested:
+                    type: integer
+                    description: Count of successfully ingested chunks
+                  failed:
+                    type: integer
+                    description: Count of failed chunks
+                  rag_entry_ids:
+                    type: array
+                    items:
+                      type: string
+
+  /api/v1/knowledge/search:
+    get:
+      tags: [Knowledge]
+      summary: Search knowledge base
+      description: Perform RAG search across knowledge base
+      parameters:
+        - name: agent_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+            maximum: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        content:
+                          type: string
+                        score:
+                          type: number
+                        metadata:
+                          type: object
+                        document_id:
+                          type: string
+
+  /api/v1/knowledge/documents:
+    get:
+      tags: [Knowledge]
+      summary: List documents
+      description: Get all documents in knowledge base
+      parameters:
+        - name: agent_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+
+  /api/v1/knowledge/documents/{id}:
+    delete:
+      tags: [Knowledge]
+      summary: Delete document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+
+  /api/v1/analytics:
+    get:
+      tags: [Analytics]
+      summary: Today's analytics overview
+      description: Get comprehensive statistics for today
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Today's statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodayStats'
+
+  /api/v1/analytics/sessions:
+    get:
+      tags: [Analytics]
+      summary: Recent sessions
+      description: Get recent call sessions with details
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of recent sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionSummary'
+                  total:
+                    type: integer
+
+  /api/v1/analytics/agent/{agent_id}:
+    get:
+      tags: [Analytics]
+      summary: Per-agent analytics
+      description: Get comprehensive statistics for a specific agent
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentAnalytics'
+
+  /api/v1/analytics/latency/{agent_id}:
+    get:
+      tags: [Analytics]
+      summary: Latency metrics
+      description: Get detailed latency metrics (P50/P95/P99)
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - name: time_range
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Hours to look back
+      responses:
+        '200':
+          description: Latency statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LatencyStats'
+
+  /api/v1/analytics/functions/{agent_id}:
+    get:
+      tags: [Analytics]
+      summary: Function call statistics
+      description: Get performance metrics for function calls
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - name: time_range
+          in: query
+          schema:
+            type: integer
+            default: 24
+      responses:
+        '200':
+          description: Function call statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FunctionStats'
+
+  /api/v1/analytics/health:
+    get:
+      tags: [Analytics]
+      summary: System health metrics
+      description: Get real-time system health and error rates
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemHealth'
+
+  /api/v1/analytics/hourly:
+    get:
+      tags: [Analytics]
+      summary: Hourly breakdown
+      description: Get hourly call statistics for time-series charts
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: query
+          schema:
+            type: integer
+            description: Unix timestamp (defaults to today)
+      responses:
+        '200':
+          description: Hourly statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HourlyStats'
+
+  /api/v1/analytics/agents:
+    get:
+      tags: [Analytics]
+      summary: All agents performance
+      description: Compare performance across all agents
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Agent performance comparison
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentPerformance'
+
+components:
+  parameters:
+    OrganizationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Organization ID
+      example: j57abc123def
+
+    AgentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Agent ID
+      example: j57def456ghi
+
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Session ID
+      example: sess_abc123xyz
+
+  schemas:
+    Organization:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: j57abc123def
+        slug:
+          type: string
+          example: acme-corp
+        name:
+          type: string
+          example: Acme Corporation
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: number
+          description: Unix timestamp
+
+    Agent:
+      type: object
+      properties:
+        _id:
+          type: string
+        organizationId:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        systemPrompt:
+          type: string
+        config:
+          type: object
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: number
+        updatedAt:
+          type: number
+
+    Session:
+      type: object
+      properties:
+        _id:
+          type: string
+        sessionId:
+          type: string
+        organizationId:
+          type: string
+        agentId:
+          type: string
+        roomName:
+          type: string
+        participantIdentity:
+          type: string
+        callType:
+          type: string
+          enum: [inbound, outbound, web]
+        status:
+          type: string
+          enum: [active, completed, failed, expired]
+        startedAt:
+          type: number
+        endedAt:
+          type: number
+        durationSeconds:
+          type: number
+        metadata:
+          type: object
+
+    CallSummary:
+      type: object
+      properties:
+        session_id:
+          type: string
+        agent_id:
+          type: string
+        status:
+          type: string
+        started_at:
+          type: number
+        duration_seconds:
+          type: number
+        call_type:
+          type: string
+
+    CallDetails:
+      type: object
+      properties:
+        session:
+          $ref: '#/components/schemas/Session'
+        interactions:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: number
+              interactionType:
+                type: string
+              userInput:
+                type: string
+              agentResponse:
+                type: string
+              functionName:
+                type: string
+
+    Document:
+      type: object
+      properties:
+        _id:
+          type: string
+        organizationId:
+          type: string
+        agentId:
+          type: string
+        fileName:
+          type: string
+        fileType:
+          type: string
+        uploadedAt:
+          type: number
+        chunkCount:
+          type: integer
+
+    TodayStats:
+      type: object
+      properties:
+        status:
+          type: string
+        data:
+          type: object
+          properties:
+            today:
+              type: object
+              properties:
+                total_calls:
+                  type: integer
+                completed_calls:
+                  type: integer
+                failed_calls:
+                  type: integer
+                active_calls:
+                  type: integer
+                completion_rate:
+                  type: integer
+                avg_duration_seconds:
+                  type: number
+                total_duration_seconds:
+                  type: number
+            timestamp:
+              type: string
+
+    SessionSummary:
+      type: object
+      properties:
+        session_id:
+          type: string
+        agent_id:
+          type: string
+        status:
+          type: string
+        started_at:
+          type: number
+        ended_at:
+          type: number
+        duration_seconds:
+          type: number
+        call_type:
+          type: string
+
+    AgentAnalytics:
+      type: object
+      properties:
+        status:
+          type: string
+        agent_id:
+          type: string
+        stats:
+          type: object
+          properties:
+            total_calls:
+              type: integer
+            completed_calls:
+              type: integer
+            completion_rate:
+              type: integer
+            avg_duration_seconds:
+              type: number
+            total_duration_seconds:
+              type: number
+            avg_latency_ms:
+              type: number
+        recent_sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+
+    LatencyStats:
+      type: object
+      properties:
+        status:
+          type: string
+        agent_id:
+          type: string
+        time_range_hours:
+          type: integer
+        metrics:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              count:
+                type: integer
+              avg_ms:
+                type: number
+              p50_ms:
+                type: number
+              p95_ms:
+                type: number
+              p99_ms:
+                type: number
+              min_ms:
+                type: number
+              max_ms:
+                type: number
+        total_measurements:
+          type: integer
+
+    FunctionStats:
+      type: object
+      properties:
+        status:
+          type: string
+        agent_id:
+          type: string
+        time_range_hours:
+          type: integer
+        functions:
+          type: array
+          items:
+            type: object
+            properties:
+              function_name:
+                type: string
+              call_count:
+                type: integer
+              avg_duration_ms:
+                type: number
+              p95_duration_ms:
+                type: number
+              min_duration_ms:
+                type: number
+              max_duration_ms:
+                type: number
+        total_calls:
+          type: integer
+
+    SystemHealth:
+      type: object
+      properties:
+        status:
+          type: string
+        health:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [healthy, warning, critical]
+            error_rate_24h:
+              type: number
+            error_rate_1h:
+              type: number
+            active_sessions:
+              type: integer
+            avg_duration_24h:
+              type: number
+        metrics:
+          type: object
+          properties:
+            calls_last_24h:
+              type: integer
+            calls_last_1h:
+              type: integer
+            failed_last_24h:
+              type: integer
+            failed_last_1h:
+              type: integer
+        timestamp:
+          type: number
+
+    HourlyStats:
+      type: object
+      properties:
+        status:
+          type: string
+        date:
+          type: number
+        hourly_stats:
+          type: array
+          items:
+            type: object
+            properties:
+              hour:
+                type: integer
+                minimum: 0
+                maximum: 23
+              calls:
+                type: integer
+              completed:
+                type: integer
+              failed:
+                type: integer
+              total_duration:
+                type: number
+
+    AgentPerformance:
+      type: object
+      properties:
+        status:
+          type: string
+        agents:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              agent_name:
+                type: string
+              total_calls:
+                type: integer
+              completed_calls:
+                type: integer
+              failed_calls:
+                type: integer
+              completion_rate:
+                type: integer
+              avg_duration_seconds:
+                type: number
+              total_duration_seconds:
+                type: number
+              last_call_at:
+                type: number
+              status:
+                type: string
+        total_agents:
+          type: integer
+
+    ReadinessCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+        uptime:
+          type: integer
+        checks:
+          type: object
+          properties:
+            livekit:
+              type: string
+            sarvam:
+              type: string
+            convex:
+              type: string
+
+    KnowledgeChunk:
+      type: object
+      required: [content]
+      properties:
+        id:
+          type: string
+          description: Unique chunk identifier
+        topic:
+          type: string
+          description: Topic or title for the chunk
+        keywords:
+          type: array
+          items:
+            type: string
+          description: Search keywords
+        content:
+          type: string
+          description: The main text content of the chunk
+        metadata:
+          type: object
+          description: Any additional JSON metadata
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ServiceUnavailable:
+      description: Service temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Future authentication mechanism
+
+# Future authentication
+# security:
+#   - ApiKeyAuth: []

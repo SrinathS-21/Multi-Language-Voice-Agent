@@ -1,0 +1,3 @@
+﻿*.js
+*.js.map
+!convex.config.js

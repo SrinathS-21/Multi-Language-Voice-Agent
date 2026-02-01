@@ -1,0 +1,74 @@
+{
+  "name": "livekit-sarvam-agent",
+  "version": "0.3.0",
+  "description": "Production-ready multilingual voice agent for Indian languages using Sarvam AI and LiveKit Agents",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "download-files": "tsc && node dist/agent/index.js download-files",
+    "dev": "tsx src/agent/index.ts dev",
+    "dev:api": "tsx src/api/server.ts",
+    "build": "tsc",
+    "start": "node start-production.js",
+    "start:agent": "node dist/agent/index.js start",
+    "start:api": "node dist/api/server.js",
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy",
+    "warmup": "tsx scripts/warmup-agent.ts",
+    "prepare:render": "node scripts/prepare-render.js",
+    "health-check": "node scripts/keep-alive.js",
+    "validate": "tsx scripts/validate-environment.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.0.0",
+    "@convex-dev/rag": "^0.1.0",
+    "@livekit/agents": "^1.0.36",
+    "@livekit/agents-plugin-livekit": "^1.0.36",
+    "@livekit/agents-plugin-openai": "^1.0.36",
+    "@livekit/agents-plugin-silero": "^1.0.36",
+    "@livekit/noise-cancellation-node": "^0.1.9",
+    "@livekit/rtc-node": "^0.13.24",
+    "axios": "^1.7.0",
+    "convex": "^1.17.0",
+    "dotenv": "^16.6.1",
+    "form-data": "^4.0.5",
+    "gpt-tokenizer": "^2.9.0",
+    "livekit-server-sdk": "^2.6.0",
+    "llamaindex": "^0.8.0",
+    "lru-cache": "^11.2.4",
+    "mammoth": "^1.8.0",
+    "mpg123-decoder": "^1.0.3",
+    "openai": "^6.16.0",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^9.0.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.28",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/uuid": "^9.0.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "livekit",
+    "voice-agent",
+    "sarvam-ai",
+    "indian-languages",
+    "multilingual",
+    "speech-to-text",
+    "text-to-speech",
+    "typescript",
+    "nodejs"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Spinabot",
+    "email": "info@spinabot.com"
+  }
+}

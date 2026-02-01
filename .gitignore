@@ -1,0 +1,79 @@
+# Node.js / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+.turbo
+
+# Build output
+build/
+out/
+
+# Next.js (Frontend)
+.next/
+Frontend/.next/
+Frontend/out/
+
+# Convex compiled files (keep TypeScript source only)
+convex/*.js
+convex/*.js.map
+!convex/_generated/
+
+# Virtual environments (legacy Python)
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+
+# Models (large files - download separately)
+*.onnx
+*.onnx.json
+*.bin
+*.pt
+*.pth
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+
+# Testing
+coverage/
+.nyc_output/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# MyPy
+.mypy_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+.vercel
+.turbo
+
+# Docker
+docker-compose.override.yml
+
+# Note: uv.lock is intentionally NOT ignored
+# It should be committed for reproducible builds
+
+.env.local
