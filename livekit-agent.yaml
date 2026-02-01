@@ -1,0 +1,28 @@
+name: sarvam-voice-agent
+runtime: node
+entry_point: dist/src/agent/index.js
+build_command: npm ci && npm run build
+
+# Environment variables (these will be set in LiveKit Cloud dashboard)
+env:
+  - LIVEKIT_URL
+  - LIVEKIT_API_KEY
+  - LIVEKIT_API_SECRET
+  - SARVAM_API_KEY
+  - OPENAI_API_KEY
+  - CONVEX_URL
+  - CONVEX_DEPLOY_KEY
+  - DEFAULT_ORGANIZATION_ID
+  - HF_HUB_OFFLINE=0
+  - HF_HUB_ENABLE_HF_TRANSFER=1
+
+# Resources
+resources:
+  memory: 2048  # 2GB RAM
+  cpu: 1
+
+# Health check
+health_check:
+  enabled: true
+  path: /health
+  port: 8080
