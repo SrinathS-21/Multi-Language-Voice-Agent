@@ -18,13 +18,17 @@ COPY . .
 
 # Build TypeScript
 RUN npm run build
-RUN node dist/src/agent/index.js download-files
+# Note: Model files download automatically on first startup (EOU/VAD models)
+# The @livekit/agents SDK handles this via @huggingface/transformers
 
 # Production image
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+# Allow Hugging Face model downloads at runtime (EOU/VAD models)
+ENV HF_HUB_OFFLINE=0
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
