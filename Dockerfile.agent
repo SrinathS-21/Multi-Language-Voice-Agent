@@ -42,4 +42,4 @@ USER agent
 EXPOSE 8080
 
 # Start ONLY the agent worker
-CMD ["node", "dist/src/agent/index.js", "start"]
+ENTRYPOINT ["node", "dist/src/agent/index.js", "start"]
