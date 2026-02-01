@@ -1,3 +1,4 @@
 ﻿*.js
 *.js.map
 !convex.config.js
+!_generated/*.js

@@ -13,10 +13,11 @@ out/
 Frontend/.next/
 Frontend/out/
 
-# Convex compiled files (keep TypeScript source only)
+# Convex compiled files
 convex/*.js
 convex/*.js.map
 !convex/_generated/
+!convex/_generated/*.js
 
 # Virtual environments (legacy Python)
 .venv/
