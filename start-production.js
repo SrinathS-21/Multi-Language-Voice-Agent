@@ -6,14 +6,14 @@ import { spawn } from 'child_process';
 console.log('🚀 Starting production services...');
 
 // Start API Server
-const apiServer = spawn('node', ['dist/api/server.js'], {
+const apiServer = spawn('node', ['dist/src/api/server.js'], {
   stdio: 'inherit',
   env: { ...process.env, PORT: process.env.PORT || '8000' }
 });
 
 // Start Agent (after 2 second delay)
 setTimeout(() => {
-  const agent = spawn('node', ['dist/agent/index.js', 'start'], {
+  const agent = spawn('node', ['dist/src/agent/index.js', 'start'], {
     stdio: 'inherit',
     env: process.env
   });

@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
@@ -12,12 +14,23 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "outDir": "./dist",
     "rootDir": ".",
     "forceConsistentCasingInFileNames": true,
     "baseUrl": "."
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "convex", "Frontend", "scripts"]
+  "include": [
+    "src/**/*.ts",
+    "convex/**/*.ts",
+    "convex/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "Frontend",
+    "scripts"
+  ]
 }

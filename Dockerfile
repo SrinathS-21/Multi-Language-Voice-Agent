@@ -18,6 +18,7 @@ COPY . .
 
 # Build TypeScript
 RUN npm run build
+RUN node dist/src/agent/index.js download-files
 
 # Production image
 FROM base AS runner
