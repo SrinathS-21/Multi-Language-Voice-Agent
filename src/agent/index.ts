@@ -47,7 +47,6 @@ import { createLatencyTracker, LatencyOperation } from '../telephony/index.js';
 // Agent modules
 import { VAD_CONFIG, VOICE_OPTIONS, CONNECTION_OPTIONS, DEFAULT_AGENT, PREWARM_PHRASES } from './config.js';
 import { extractRoomContext, processParticipantContext, injectDateTimeIntoPrompt } from './room-utils.js';
-import { startPersistentAmbience } from './ambient-audio.js';
 import { VoiceAssistant, activeSessions } from './voice-assistant.js';
 import type { AgentContext } from './types.js';
 
@@ -208,12 +207,14 @@ export default defineAgent({
         toolCount: functions.length,
       });
     } else {
-      logger.warning('⚠️ No agent config found, using defaults', { agentId });
+      logger.error('❌ No agent config found - agent must be configured in database', { agentId });
+      throw new Error(`Agent ${agentId} not found. Please configure the agent in the database.`);
     }
 
-    // Get system prompt
+    // Get system prompt - agent MUST have a prompt configured
     const promptResult = await agentConfigService.getCachedFullPrompt(agentId);
     if (!promptResult.prompt) {
+      logger.error('❌ Agent has no prompt configured', { agentId });
       throw new Error(`Agent ${agentId} has no prompt. Run: npx convex run agents:rebuildAllPrompts`);
     }
 
@@ -250,7 +251,10 @@ export default defineAgent({
       isTelephony: isSIPRoom,
     };
 
-    // Build tool context
+    // Create a mutable reference for the assistant (set after creation)
+    let assistantRef: VoiceAssistant | null = null;
+
+    // Build tool context with deferred shutdown callback
     const toolExecutionContext: ToolExecutionContext = {
       organizationId,
       agentId,
@@ -258,14 +262,20 @@ export default defineAgent({
       knowledgeService,
       sessionService,
       callTracker,
+      // Deferred getter - returns the shutdown callback when the assistant is ready
+      getShutdownCallback: () => assistantRef?.getShutdownCallback(),
     };
 
+    // Build tools first
     const tools = functions.length > 0
       ? buildToolContext(functions, toolExecutionContext)
       : createMinimalToolContext(toolExecutionContext);
 
-    // Create assistant
+    // Create assistant with tools
     const assistant = new VoiceAssistant(systemPrompt, tools, agentContext);
+    
+    // Set the reference so deferred callback can access it
+    assistantRef = assistant;
 
     // Initialize plugins using agent-specific configuration (voice, pace, language from database)
     const plugins = createPluginsFromAgentConfig({
@@ -337,15 +347,6 @@ export default defineAgent({
         throw error;
       }
     }
-
-    // Start ambient audio
-    const ambientAudio = await startPersistentAmbience(
-      ctx.room,
-      'assest/hospital-ambience-sound.mp3',
-      session.sessionId,
-      { volume: 0.15, loop: true, trackName: 'hospital-ambience' }
-    );
-    agentContext.cleanupAmbientAudio = ambientAudio.cleanup;
 
     latencyTracker.endTiming(setupTimingKey);
 

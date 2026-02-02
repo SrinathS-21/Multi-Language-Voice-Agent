@@ -4,10 +4,6 @@
  * Builds tool context for LiveKit voice agents.
  * Combines predefined tools with generated function tools.
  * 
- * NOTE: Call termination is handled via farewell detection, not a tool.
- * When user says "thank you", agent says farewell message from config,
- * then agent detaches from room and Twilio connection is closed.
- * 
  * @module tool-handlers/tool-context
  */
 
@@ -16,24 +12,25 @@ import { logger } from '../../core/logging.js';
 import type { GeneratedFunction } from '../function-generator.js';
 import type { ToolExecutionContext } from './types.js';
 import { createKnowledgeSearchTool } from './search.js';
-import { createTransferCallTool } from './calls.js';
+import { createTransferCallTool, createEndCallTool } from './calls.js';
 import { createVectorSearchTool, createWebhookTool, createStaticTool } from './dynamic.js';
 
 /**
  * Build tool context from generated functions
  * 
  * Creates a tool context that handles:
- * 1. Transfer call tool for escalation to human agents
- * 2. Generated functions from domain configs (search_catalog, get_information, etc.)
- * 
- * NOTE: end_call is NOT a tool - call termination happens automatically when
- * the agent detects farewell intent and delivers the configured farewell message.
+ * 1. End call tool for graceful termination
+ * 2. Transfer call tool for escalation to human agents
+ * 3. Generated functions from domain configs (search_catalog, get_information, etc.)
  */
 export function buildToolContext(
     generatedFunctions: GeneratedFunction[],
     executionContext: ToolExecutionContext
 ): llm.ToolContext {
     const toolContext: llm.ToolContext = {};
+
+    // Add end call tool for graceful call termination
+    toolContext['end_call'] = createEndCallTool(executionContext);
 
     // Add transfer call tool for escalating to human agents
     toolContext['transfer_call'] = createTransferCallTool(executionContext);
@@ -75,12 +72,13 @@ export function buildToolContext(
 }
 
 /**
- * Create minimal tool context with just search tool
+ * Create minimal tool context with search and end_call tools
  */
 export function createMinimalToolContext(
     executionContext: ToolExecutionContext
 ): llm.ToolContext {
     return {
         search_knowledge: createKnowledgeSearchTool(executionContext),
+        end_call: createEndCallTool(executionContext),
     };
 }

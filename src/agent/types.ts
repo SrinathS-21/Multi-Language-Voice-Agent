@@ -29,7 +29,6 @@ export interface AgentContext {
   isTelephony?: boolean;
   callerPhoneNumber?: string;
   callDirection?: 'inbound' | 'outbound';
-  cleanupAmbientAudio?: () => void;
 }
 
 /**
@@ -39,20 +38,4 @@ export interface RoomContext {
   organizationId: string;
   agentId: string;
   isSIPRoom: boolean;
-}
-
-/**
- * Ambient audio options
- */
-export interface AmbientAudioOptions {
-  volume?: number;
-  loop?: boolean;
-  trackName?: string;
-}
-
-/**
- * Ambient audio result
- */
-export interface AmbientAudioResult {
-  cleanup: () => void;
 }

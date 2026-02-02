@@ -22,10 +22,10 @@
  * Critical for function calling behavior
  */
 export const TOOL_USAGE_SECTION = `TOOL RULE (MANDATORY):
-- ALWAYS use 'search_knowledge' tool BEFORE answering anything about business-specific information
-- NEVER answer from your own knowledge — search first.
-- If no results → politely say you don't have that info and offer other help.
-  Example: "Sorry, I don't have that detail right now. Anything else I can assist with?"`;
+- Use 'search_knowledge' tool ONCE when user asks about business info (products, services, prices, policies)
+- IMPORTANT: Search ONCE per topic only. If no results, say you don't have that info - do NOT search again
+- For booking/scheduling requests - don't keep searching. Either use booking tool or ask user for details directly
+- NEVER call the same search tool multiple times for the same query`;
 
 /**
  * Language handling rules for multilingual support
@@ -57,6 +57,14 @@ export const RESPONSE_STYLE_SECTION = `TONE & BEHAVIOR:
 - Sound like a real human agent
 - Match user's language and energy`;
 
+/**
+ * End call instructions for graceful call termination
+ */
+export const END_CALL_SECTION = `ENDING THE CALL:
+- When user says goodbye (bye, thank you goodbye, that's all) - say farewell then call end_call tool
+- Call end_call after your farewell message to disconnect the call
+- The call will end gracefully after your farewell audio finishes playing`;
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -72,7 +80,9 @@ ${LANGUAGE_RULES_SECTION}
 
 ${VOICE_GUIDELINES_SECTION}
 
-${RESPONSE_STYLE_SECTION}`;
+${RESPONSE_STYLE_SECTION}
+
+${END_CALL_SECTION}`;
 }
 
 /**

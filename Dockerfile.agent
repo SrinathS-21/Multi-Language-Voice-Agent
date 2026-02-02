@@ -1,7 +1,10 @@
 # Optimized Dockerfile for LiveKit Cloud Agent ONLY
 FROM node:20-alpine AS base
 
-# Install dependencies
+# Install runtime dependencies (FFmpeg for ambient audio)
+RUN apk add --no-cache ffmpeg
+
+# Install build dependencies
 FROM base AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
@@ -35,6 +38,9 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder --chown=agent:nodejs /app/dist ./dist
 COPY --from=builder --chown=agent:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=agent:nodejs /app/package.json ./
+
+# Copy ambient audio assets
+COPY --from=builder --chown=agent:nodejs /app/assest ./assest
 
 USER agent
 

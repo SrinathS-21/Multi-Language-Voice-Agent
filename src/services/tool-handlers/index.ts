@@ -4,8 +4,6 @@
  * Implements LiveKit-compatible tool handlers for voice agent function calling.
  * These handlers execute when the LLM decides to call a function.
  * 
- * Note: Call termination happens via farewell message detection, not a tool.
- * 
  * @module tool-handlers
  */
 
@@ -25,6 +23,7 @@ export {
 // Call management tools
 export {
     createTransferCallTool,
+    createEndCallTool,
 } from './calls.js';
 
 // Business tools
@@ -48,7 +47,7 @@ export {
 // Import for default export
 import { buildToolContext, createMinimalToolContext } from './context.js';
 import { createKnowledgeSearchTool, createGeneralSearchTool } from './search.js';
-import { createTransferCallTool } from './calls.js';
+import { createTransferCallTool, createEndCallTool } from './calls.js';
 
 // Default export for backward compatibility
 export default {
@@ -57,4 +56,5 @@ export default {
     createKnowledgeSearchTool,
     createGeneralSearchTool,
     createTransferCallTool,
+    createEndCallTool,
 };

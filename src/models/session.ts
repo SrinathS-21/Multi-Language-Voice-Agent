@@ -67,7 +67,7 @@ export interface Interaction {
   id: string;
   type: InteractionType;
   content: string;
-  timestamp: Date;
+  timestamp: number; // Epoch ms for Convex compatibility
   sessionId?: string;
   organizationId?: string;
   agentId?: string;

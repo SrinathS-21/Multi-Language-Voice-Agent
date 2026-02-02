@@ -84,10 +84,13 @@ const appConfigSchema = z.object({
  * Parse and validate configuration from environment variables
  */
 function loadConfig() {
+  // Skip validation during download-files command (build time)
+  const isDownloadFilesMode = process.argv.includes('download-files');
+  
   try {
     const rawConfig = {
       sarvam: {
-        apiKey: process.env.SARVAM_API_KEY || '',
+        apiKey: process.env.SARVAM_API_KEY || (isDownloadFilesMode ? 'build-placeholder' : ''),
         sttModel: process.env.SARVAM_STT_MODEL || 'saarika:v2.5',
         ttsModel: process.env.SARVAM_TTS_MODEL || 'bulbul:v2',
         ttsSpeaker: process.env.SARVAM_TTS_SPEAKER || 'anushka',
@@ -97,9 +100,9 @@ function loadConfig() {
         language: process.env.SARVAM_LANGUAGE || 'ta-IN',  // Default to Tamil
       },
       livekit: {
-        url: process.env.LIVEKIT_URL || '',
-        apiKey: process.env.LIVEKIT_API_KEY || '',
-        apiSecret: process.env.LIVEKIT_API_SECRET || '',
+        url: process.env.LIVEKIT_URL || (isDownloadFilesMode ? 'wss://build.livekit.cloud' : ''),
+        apiKey: process.env.LIVEKIT_API_KEY || (isDownloadFilesMode ? 'build-placeholder' : ''),
+        apiSecret: process.env.LIVEKIT_API_SECRET || (isDownloadFilesMode ? 'build-placeholder' : ''),
       },
       convex: {
         url: process.env.CONVEX_URL,

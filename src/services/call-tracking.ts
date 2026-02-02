@@ -59,7 +59,7 @@ export class CallTrackingService {
             id: `${sessionId}-${Date.now()}-user`,
             type: InteractionType.USER_MESSAGE,
             content: userInput,
-            timestamp: new Date(),
+            timestamp: Date.now(), // Epoch ms for Convex v.number()
             sessionId,
             organizationId,
             agentId: options?.agentId,
@@ -89,7 +89,7 @@ export class CallTrackingService {
             id: `${sessionId}-${Date.now()}-agent`,
             type: InteractionType.AGENT_RESPONSE,
             content: agentResponse,
-            timestamp: new Date(),
+            timestamp: Date.now(), // Epoch ms for Convex v.number()
             sessionId,
             organizationId,
             agentId: options?.agentId,
@@ -121,7 +121,7 @@ export class CallTrackingService {
             id: `${sessionId}-${Date.now()}-func`,
             type: InteractionType.FUNCTION_CALL,
             content: `${functionName}(${JSON.stringify(functionParams).substring(0, 100)})`,
-            timestamp: new Date(),
+            timestamp: Date.now(), // Epoch ms for Convex v.number()
             sessionId,
             organizationId,
             agentId: options?.agentId,
@@ -285,7 +285,7 @@ export class CallTrackingService {
                     id: r._id?.toString() || `${r.sessionId}-${r.timestamp}`,
                     type: r.interactionType as InteractionType,
                     content: r.userInput || r.agentResponse || r.functionName || '',
-                    timestamp: new Date(r.timestamp),
+                    timestamp: typeof r.timestamp === 'number' ? r.timestamp : new Date(r.timestamp).getTime(), // Epoch ms
                     sessionId: r.sessionId,
                     organizationId: r.organizationId,
                     agentId: r.agentId,

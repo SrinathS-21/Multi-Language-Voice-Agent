@@ -9,10 +9,12 @@ export const PREDEFINED_SECTIONS = {
     name: "Tool Usage Guidelines",
     content: `TOOL USAGE (CRITICAL):
 - You have access to a 'search_knowledge' tool that searches the knowledge base
-- ALWAYS call search_knowledge BEFORE answering ANY question about the business, services, products, policies, FAQs, or medical information
-- Do NOT answer from your own knowledge - ALWAYS use the search tool first
-- If the search returns no results, say you don't have that specific information and offer to help with something else
-- Example: User asks "How long does fracture healing take?" → Call search_knowledge with query "fracture healing time"`,
+- Call search_knowledge ONCE when user asks about business-specific information (products, services, prices, policies)
+- IMPORTANT: Only call search_knowledge ONCE per topic. If the search returns no results or insufficient info, DO NOT search again with the same query - instead say you don't have that specific information
+- For actions like "book appointment", "schedule", "reserve" - DO NOT search repeatedly. Either:
+  1. If you have a booking tool, use it directly
+  2. If no booking tool exists, respond naturally: "I'd be happy to help you book an appointment. May I have your name and preferred time?"
+- Do NOT keep searching for the same thing - one search attempt per topic is enough`,
   },
   
   LANGUAGE_RULES: {
@@ -40,11 +42,11 @@ export const PREDEFINED_SECTIONS = {
   END_CALL_RULES: {
     name: "Call Termination Protocol",
     content: `END CALL RULES (VERY IMPORTANT):
-- Use end_call when user EXPLICITLY says goodbye: "bye", "goodbye", "thank you, bye", "end call", "disconnect"
-- ALSO use end_call when user says just "thank you" / "நன்றி" / "okay" AFTER completing an appointment booking or resolving their main request
-- Do NOT end call if user just acknowledged info without resolving their need (e.g., "okay" after price quote but no booking)
-- When in doubt about user's intent, say a polite farewell like "Thank you for calling! Take care!" - the system will auto-disconnect after farewell
-- Never leave the call hanging - always provide closure`,
+- When user says goodbye ("bye", "goodbye", "thank you, bye", "that's all", "disconnect"), first say your farewell message
+- After saying your farewell message, call the end_call tool to terminate the call
+- Also call end_call when user says just "thank you" / "நன்றி" / "धन्यवाद" / "okay" AFTER completing an appointment booking or resolving their main request
+- Do NOT call end_call if user just acknowledged info without resolving their need (e.g., "okay" after price quote but no booking)
+- The end_call tool will gracefully disconnect the call after your farewell audio finishes playing`,
   },
   
   RESPONSE_STYLE: {

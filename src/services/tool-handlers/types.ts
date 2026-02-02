@@ -27,8 +27,11 @@ export interface ToolExecutionContext {
     sessionService: SessionService;
     callTracker: CallTrackingService;
     farewell?: string;  // Farewell message from database
-    /** Optional callback to shutdown the call (disconnect Twilio/SIP and agent) */
-    shutdownCallback?: ShutdownCallbackFn;
+    /** 
+     * Deferred shutdown callback getter
+     * Returns the shutdown callback when called (allows setting after tool creation)
+     */
+    getShutdownCallback?: () => ShutdownCallbackFn | undefined;
 }
 
 /**

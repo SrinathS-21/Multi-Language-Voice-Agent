@@ -22,10 +22,54 @@ export const activeSessions = new Map<string, { callTracker: any; sessionId: str
  */
 export class VoiceAssistant extends voice.Agent {
   private ctx?: AgentContext;
+  private isShuttingDown = false;
 
   constructor(systemPrompt: string, tools: llm.ToolContext, ctx?: AgentContext) {
     super({ instructions: systemPrompt, tools });
     this.ctx = ctx;
+  }
+
+  /**
+   * Shutdown the call gracefully
+   * Disconnects from room which will terminate the Twilio SIP connection
+   */
+  async shutdown(reason: string = 'user_goodbye'): Promise<void> {
+    if (this.isShuttingDown) {
+      logger.debug('Shutdown already in progress', { sessionId: this.ctx?.sessionId });
+      return;
+    }
+    
+    this.isShuttingDown = true;
+    
+    logger.info('🔌 Initiating call shutdown', {
+      reason,
+      sessionId: this.ctx?.sessionId,
+    });
+
+    try {
+      // Use the SDK's shutdown method to gracefully close the session
+      // This disconnects the agent from the room, which terminates the Twilio SIP connection
+      this.session.shutdown({ 
+        drain: true,  // Allow pending audio to finish
+        reason: 'agent_shutdown' as any 
+      });
+      
+      logger.info('✅ Call shutdown initiated', { sessionId: this.ctx?.sessionId });
+    } catch (error) {
+      logger.error('Error during call shutdown', {
+        error: (error as Error).message,
+        sessionId: this.ctx?.sessionId,
+      });
+    }
+  }
+
+  /**
+   * Get shutdown callback for tool handlers
+   */
+  getShutdownCallback(): (reason: string) => Promise<void> {
+    return async (reason: string) => {
+      await this.shutdown(reason);
+    };
   }
 
   /**
@@ -205,9 +249,6 @@ export class VoiceAssistant extends voice.Agent {
       }
     }
 
-    // Cleanup ambient audio
-    this.ctx?.cleanupAmbientAudio?.();
-    
     // Flush to database
     if (this.ctx?.callTracker && this.ctx?.sessionId) {
       try {

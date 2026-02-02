@@ -144,57 +144,126 @@ export class AgentConfigService {
             throw new Error('CONVEX_URL is required for AgentConfigService');
         }
         this.convexUrl = url;
+        logger.info(`AgentConfigService initialized with Convex URL: ${url}`);
     }
 
     /**
-     * Make a Convex query via HTTP
+     * Helper to create fetch with timeout
+     * Using 30 second timeout to handle cross-region latency (India West -> US East)
+     */
+    private async fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 30000): Promise<Response> {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        
+        const startTime = Date.now();
+        try {
+            logger.debug(`Fetching ${url}...`);
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal,
+            });
+            logger.debug(`Fetch completed in ${Date.now() - startTime}ms`, { status: response.status });
+            return response;
+        } catch (error) {
+            logger.debug(`Fetch failed after ${Date.now() - startTime}ms`, { 
+                error: error instanceof Error ? error.message : String(error),
+                url 
+            });
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    /**
+     * Helper for retry logic with exponential backoff
+     * Extended timeouts for cross-region connectivity (India West -> US East)
+     */
+    private async withRetry<T>(
+        operation: () => Promise<T>,
+        operationName: string,
+        maxRetries: number = 4,
+        baseDelayMs: number = 2000
+    ): Promise<T> {
+        let lastError: Error | undefined;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                
+                if (attempt < maxRetries) {
+                    const delay = baseDelayMs * Math.pow(2, attempt - 1); // Exponential backoff
+                    logger.warning(`${operationName} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms`, {
+                        error: lastError.message,
+                        attempt,
+                        maxRetries,
+                    });
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        logger.error(`${operationName} failed after ${maxRetries} attempts`, {
+            error: lastError?.message,
+        });
+        throw lastError;
+    }
+
+    /**
+     * Make a Convex query via HTTP with retry and timeout
      */
     private async convexQuery(functionPath: string, args: Record<string, any>): Promise<any> {
-        const url = `${this.convexUrl}/api/query`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                path: functionPath,
-                args,
-                format: 'json',
-            }),
-        });
+        return this.withRetry(async () => {
+            const url = `${this.convexUrl}/api/query`;
+            const response = await this.fetchWithTimeout(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    path: functionPath,
+                    args,
+                    format: 'json',
+                }),
+            }, 15000); // 15 second timeout
 
-        if (!response.ok) {
-            throw new Error(`Convex query failed: ${response.status} ${response.statusText}`);
-        }
+            if (!response.ok) {
+                throw new Error(`Convex query failed: ${response.status} ${response.statusText}`);
+            }
 
-        const result = await response.json();
-        return result.value;
+            const result = await response.json();
+            return result.value;
+        }, `Convex query ${functionPath}`, 3, 1000);
     }
 
     /**
-     * Execute a Convex mutation via HTTP
+     * Execute a Convex mutation via HTTP with retry and timeout
      */
     private async convexMutation(functionName: string, args: Record<string, any>): Promise<any> {
-        const url = `${this.convexUrl}/api/mutation`;
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                path: functionName,
-                args,
-                format: 'json',
-            }),
-        });
+        return this.withRetry(async () => {
+            const url = `${this.convexUrl}/api/mutation`;
+            
+            const response = await this.fetchWithTimeout(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    path: functionName,
+                    args,
+                    format: 'json',
+                }),
+            }, 15000); // 15 second timeout
 
-        if (!response.ok) {
-            throw new Error(`Convex mutation failed: ${response.statusText}`);
-        }
+            if (!response.ok) {
+                throw new Error(`Convex mutation failed: ${response.statusText}`);
+            }
 
-        const result = await response.json();
-        return result.value;
+            const result = await response.json();
+            return result.value;
+        }, `Convex mutation ${functionName}`, 3, 1000);
     }
 
     /**
