@@ -1,6 +1,6 @@
 name: sarvam-voice-agent
 runtime: node
-dockerfile: Dockerfile
+dockerfile: Dockerfile.agent
 entry_point: dist/src/agent/index.js
 build_command: npm ci && npm run build
 

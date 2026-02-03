@@ -169,6 +169,8 @@ export function useCreateAgent() {
   return useMutation((data: {
     name: string;
     language?: string;
+    voice?: string;
+    config?: Record<string, unknown>;
     aiPersonaName?: string;
     systemPrompt?: string;
     greeting?: string;
@@ -182,6 +184,7 @@ export function useCreateAgent() {
       tenant_id: data.tenant_id || getDefaultTenantId(),
       name: data.name,
       system_prompt: data.systemPrompt,
+      config: data.config,
       ai_persona_name: data.aiPersonaName,
       greeting: data.greeting,
       farewell: data.farewell,

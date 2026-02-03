@@ -1,70 +1,39 @@
-# Render.com deployment configuration
-# Comprehensive setup for LiveKit Sarvam Agent with health checks
-
+# Render.com - API Backend Deployment
 services:
-  # Main LiveKit Agent Service
   - type: web
-    name: livekit-sarvam-agent
+    name: voice-agent-api
     runtime: docker
-    repo: https://github.com/SrinathS-21/Multi-Language-Voice-Agent.git
-    region: singapore # Closest to India (Mumbai not available)
-    plan: starter # $7/month - does NOT sleep (important for API availability)
-    branch: main
-    dockerfilePath: ./Dockerfile.api  # Use API-only Dockerfile
+    dockerfilePath: ./Dockerfile.api  # ← Specifies which Dockerfile
     dockerContext: .
+    region: singapore
+    plan: starter
+    branch: main
     
-    # Health check configuration (keeps service alive)
+    # Health check
     healthCheckPath: /health
     
-    # Auto-deploy on push
+    # Auto-deploy
     autoDeploy: true
     
-    # Environment variables (set these in Render Dashboard)
+    # Environment variables (set in Render Dashboard)
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 8080
-      - key: HEALTH_PORT
-        value: 8080
+        value: 8000
       
-      # LiveKit Configuration (add in Dashboard as secrets)
+      # Add these in Render Dashboard as secrets:
       - key: LIVEKIT_URL
-        sync: false # Set manually in dashboard
+        sync: false
       - key: LIVEKIT_API_KEY
         sync: false
       - key: LIVEKIT_API_SECRET
         sync: false
-      
-      # AI Provider Keys (add in Dashboard as secrets)
       - key: OPENAI_API_KEY
         sync: false
       - key: SARVAM_API_KEY
         sync: false
-      
-      # Convex Database (add in Dashboard as secrets)
       - key: CONVEX_URL
         sync: false
-      - key: CONVEX_DEPLOY_KEY
+      - key: DEFAULT_ORGANIZATION_ID
         sync: false
-      
-      # Optional: Telephony (add if using Twilio)
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-
-  # Cron Job to keep service alive (backup - Starter plan shouldn't sleep)
-  - type: cron
-    name: keep-alive-ping
-    runtime: node
-    schedule: "*/5 * * * *" # Every 5 minutes
-    buildCommand: echo "Cron job - no build needed"
-    startCommand: "curl -f https://livekit-sarvam-agent.onrender.com/health || exit 0"
-    repo: https://github.com/YOUR_USERNAME/livekit_sarvam_agent # Update this!
-    branch: main
-    
-    # Environment variables for cron
-    envVars:
-      - key: SERVICE_URL
-        value: https://livekit-sarvam-agent.onrender.com # Update after deployment!

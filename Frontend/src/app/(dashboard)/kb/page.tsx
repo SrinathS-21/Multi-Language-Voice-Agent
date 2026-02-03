@@ -64,9 +64,10 @@ export default function KnowledgeBasePage() {
     setSelectedDocument(document);
     setLoadingChunks(true);
     try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       // Fetch chunks from API
       const response = await fetch(
-        `http://localhost:8000/api/v1/documents/${document.documentId}/chunks`
+        `${API_BASE_URL}/api/v1/documents/${document.documentId}/chunks`
       );
       if (!response.ok) throw new Error("Failed to fetch chunks");
       const data = await response.json();
@@ -108,7 +109,8 @@ export default function KnowledgeBasePage() {
       
       if (isPending) {
         console.log("✓ USING CANCEL ENDPOINT for pending ingestion");
-        const endpoint = `http://localhost:8000/api/v1/documents/${documentToDelete.documentId}/cancel`;
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const endpoint = `${API_BASE_URL}/api/v1/documents/${documentToDelete.documentId}/cancel`;
         console.log("POST", endpoint);
         const cancelResponse = await fetch(endpoint, { method: 'POST' });
         const cancelData = await cancelResponse.json();

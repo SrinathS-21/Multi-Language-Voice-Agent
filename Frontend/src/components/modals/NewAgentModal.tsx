@@ -69,10 +69,19 @@ export function NewAgentModal() {
   const handleSubmit = async () => {
     try {
       const ORG_ID = process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || process.env.DEFAULT_ORGANIZATION_ID || '';
+      
+      // Build config object with voice settings
+      const config = {
+        language: formData.language,
+        voice: formData.voice,
+      };
+      
       const agent = await createAgentMutation({
         name: formData.name,
         tenant_id: ORG_ID,
         language: formData.language as AgentLanguage,
+        voice: formData.voice,
+        config: config,
         aiPersonaName: formData.aiPersonaName,
         systemPrompt: formData.systemPrompt,
         greeting: formData.greeting,

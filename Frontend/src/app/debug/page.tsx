@@ -10,8 +10,9 @@ export default function DebugPage() {
     const fetchAgents = async () => {
       try {
         console.log('Fetching agents from API...');
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const ORG_ID = process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || process.env.DEFAULT_ORGANIZATION_ID || '';
-        const response = await fetch(`http://localhost:8000/api/v1/agents?tenant_id=${ORG_ID}`);
+        const response = await fetch(`${API_BASE_URL}/api/v1/agents?tenant_id=${ORG_ID}`);
         console.log('Response status:', response.status);
         const data = await response.json();
         console.log('Response data:', data);
