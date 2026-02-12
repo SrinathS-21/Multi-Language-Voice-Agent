@@ -8,7 +8,7 @@
  * - Call state tracking
  */
 
-import { RoomServiceClient, SipClient } from 'livekit-server-sdk';
+import { RoomServiceClient, SipClient, AgentDispatchClient } from 'livekit-server-sdk';
 import { logger } from '../core/logging.js';
 import { config } from '../core/config.js';
 import { 
@@ -26,12 +26,16 @@ import {
   TelephonyErrorType,
 } from './types.js';
 
+// Must match the agentName in WorkerOptions (src/agent/index.ts)
+const AGENT_NAME = 'sarvam-voice-agent';
+
 /**
  * Outbound Call Handler
  */
 export class OutboundCallHandler {
   private roomService: RoomServiceClient;
   private sipClient: SipClient;
+  private agentDispatch: AgentDispatchClient;
   private latencyTracker?: LatencyTracker;
 
   constructor(latencyTracker?: LatencyTracker) {
@@ -46,6 +50,13 @@ export class OutboundCallHandler {
     
     // Initialize LiveKit SIP client for outbound calls
     this.sipClient = new SipClient(
+      config.livekit.url,
+      config.livekit.apiKey,
+      config.livekit.apiSecret
+    );
+
+    // Initialize Agent Dispatch client for dispatching agents to rooms
+    this.agentDispatch = new AgentDispatchClient(
       config.livekit.url,
       config.livekit.apiKey,
       config.livekit.apiSecret
@@ -149,8 +160,54 @@ export class OutboundCallHandler {
         agentId: request.agentId,
       });
 
-      // Create SIP participant (this initiates the outbound call)
-      // Note: This requires the livekit-server-sdk with SIP support
+      // Step 1: Create the room first
+      await this.roomService.createRoom({ name: roomName });
+      logger.info('Room created for outbound call', { roomName });
+
+      // Step 2: Dispatch an agent to the room BEFORE placing the SIP call
+      // This ensures the AI agent is ready when the callee picks up
+      // agentName MUST match the agentName in WorkerOptions (src/agent/index.ts)
+      try {
+        const dispatch = await this.agentDispatch.createDispatch(roomName, AGENT_NAME, {
+          metadata: JSON.stringify({
+            organizationId: request.organizationId,
+            agentId: request.agentId,
+            callType: 'outbound',
+            phoneNumber,
+          }),
+        });
+        logger.info('Agent dispatched to room', { roomName, dispatchId: dispatch?.id });
+      } catch (dispatchError) {
+        logger.error('Agent dispatch failed - outbound call may have no agent', {
+          roomName,
+          error: dispatchError instanceof Error ? dispatchError.message : 'Unknown',
+        });
+      }
+
+      // Step 2.5: Wait for agent to actually join the room before placing the call
+      // LiveKit Cloud may need to cold-start the agent container (5-15 seconds)
+      // Without this, the SIP call connects but the caller hears dead silence
+      const agentReady = await this.waitForAgentToJoin(roomName, 20_000);
+      if (!agentReady) {
+        logger.error('Agent did not join room within timeout - aborting outbound call', {
+          roomName,
+          callId,
+        });
+        // Clean up the room since agent never joined
+        try { await this.roomService.deleteRoom(roomName); } catch (_) {}
+        return {
+          success: false,
+          error: 'Agent failed to join room within timeout. The agent may be starting up - please retry in a few seconds.',
+          callId,
+          roomName,
+          sipParticipantId: '',
+          state: SIPCallState.FAILED,
+          initiatedAt: Date.now(),
+        };
+      }
+      logger.info('Agent confirmed in room - placing SIP call', { roomName });
+
+      // Step 3: Create SIP participant (this initiates the outbound call)
       const sipParticipantId = await this.createSIPParticipant(
         roomName,
         phoneNumber,
@@ -191,6 +248,53 @@ export class OutboundCallHandler {
         initiatedAt: Date.now(),
       };
     }
+  }
+
+  /**
+   * Wait for an agent to join a room before placing the SIP call.
+   * LiveKit Cloud may need to cold-start the agent container, which can take 5-15 seconds.
+   * This prevents dead-air calls where the phone rings but no agent is in the room.
+   */
+  private async waitForAgentToJoin(roomName: string, timeoutMs: number = 20_000): Promise<boolean> {
+    const startTime = Date.now();
+    const pollIntervalMs = 1500; // Check every 1.5 seconds
+    let attempt = 0;
+
+    while (Date.now() - startTime < timeoutMs) {
+      attempt++;
+      try {
+        const participants = await this.roomService.listParticipants(roomName);
+        const agentParticipant = participants.find(p => p.identity?.startsWith('agent-'));
+        
+        if (agentParticipant) {
+          logger.info('✅ Agent joined room', {
+            roomName,
+            agentIdentity: agentParticipant.identity,
+            waitTimeMs: Date.now() - startTime,
+            attempts: attempt,
+          });
+          return true;
+        }
+      } catch (error) {
+        // Room may not be fully ready yet, keep polling
+        logger.debug('Waiting for agent - room check failed', {
+          roomName,
+          attempt,
+          error: error instanceof Error ? error.message : 'Unknown',
+        });
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+
+    logger.error('❌ Agent did not join room within timeout', {
+      roomName,
+      timeoutMs,
+      attempts: attempt,
+      elapsedMs: Date.now() - startTime,
+    });
+    return false;
   }
 
   /**

@@ -97,7 +97,7 @@ function loadConfig() {
         llmModel: process.env.SARVAM_LLM_MODEL || 'sarvam-m',
         llmTemperature: parseFloat(process.env.SARVAM_LLM_TEMPERATURE || '0.3'), // Increased from 0.1 to improve tool calling
         ttsPace: parseFloat(process.env.SARVAM_TTS_PACE || '0.85'),  // Speech rate: 0.5-2.0, lower = slower
-        language: process.env.SARVAM_LANGUAGE || 'ta-IN',  // Default to Tamil
+        language: process.env.SARVAM_LANGUAGE || 'en-IN',  // Default to English
       },
       livekit: {
         url: process.env.LIVEKIT_URL || (isDownloadFilesMode ? 'wss://build.livekit.cloud' : ''),

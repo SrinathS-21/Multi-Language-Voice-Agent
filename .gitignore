@@ -74,6 +74,10 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
+# Deploy logs
+deploy-output.txt
+setup-output.json
+
 # Note: uv.lock is intentionally NOT ignored
 # It should be committed for reproducible builds
 

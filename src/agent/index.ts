@@ -10,16 +10,21 @@
 import {
   type JobContext,
   type JobProcess,
+  type JobRequest,
   WorkerOptions,
   cli,
   defineAgent,
   voice,
   metrics,
+  InferenceRunner,
 } from '@livekit/agents';
 import * as livekit from '@livekit/agents-plugin-livekit';
 import * as silero from '@livekit/agents-plugin-silero';
 import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import dotenv from 'dotenv';
 
 // Core
@@ -73,12 +78,15 @@ process.on('uncaughtException', (error: Error) => {
   process.exit(1);
 });
 
-// Suppress known race condition errors from speech handle
+// Suppress known race condition errors and non-fatal framework errors
 process.on('unhandledRejection', (reason: any) => {
   if (reason?.message?.includes('mark_generation_done') || 
       reason?.message?.includes('no active generation') ||
       reason?.message?.includes('speech_handle') ||
       reason?.message?.includes('Channel closed') ||
+      reason?.message?.includes('Room disconnected while waiting for participant') ||
+      reason?.message?.includes('runner initialization timed out') ||
+      reason?.message?.includes('Required model files not found') ||
       reason?.code === 'ERR_IPC_CHANNEL_CLOSED' ||
       reason?.message?.includes('[object Object]')) {
     logger.debug('Suppressed known LiveKit framework error (non-fatal)', {
@@ -90,6 +98,41 @@ process.on('unhandledRejection', (reason: any) => {
   
   logger.error('Unhandled rejection', { reason });
 });
+
+// ============================================================================
+// TURN DETECTOR AVAILABILITY CHECK
+// ============================================================================
+
+/**
+ * Check if the turn-detector ONNX model files are available in the HuggingFace cache.
+ * The model must be pre-downloaded via `download-files`; at runtime it uses localFileOnly mode.
+ * If unavailable, the agent runs without EOU turn detection (falls back to VAD silence detection).
+ */
+function isTurnDetectorAvailable(): boolean {
+  const cacheDir = join(homedir(), '.cache', 'huggingface', 'hub', 'models--livekit--turn-detector');
+  const available = existsSync(cacheDir);
+  if (!available) {
+    logger.info('⚠️  Turn detector model not found in cache - running without EOU turn detection');
+    logger.info('   To enable: run `node dist/src/agent/index.js download-files` with network access');
+  } else {
+    logger.info('✅ Turn detector model found in cache');
+  }
+  return available;
+}
+
+const turnDetectorAvailable = isTurnDetectorAvailable();
+
+// If turn-detector models are not available, clear all registered inference runners
+// BEFORE cli.runApp() creates the AgentServer. This prevents the framework from
+// spawning an inference subprocess that will crash on missing ONNX model files,
+// which would block worker registration entirely.
+if (!turnDetectorAvailable) {
+  const runners = InferenceRunner.registeredRunners;
+  for (const key of Object.keys(runners)) {
+    delete runners[key];
+  }
+  logger.info('Cleared inference runners - inference subprocess will not be started');
+}
 
 // ============================================================================
 // HEALTH SERVER
@@ -133,8 +176,37 @@ export default defineAgent({
     const sessionService = ctx.proc.userData.sessionService as SessionService;
     const callTracker = ctx.proc.userData.callTracker as CallTrackingService;
 
-    // Extract IDs from room name
-    const { organizationId, agentId, isSIPRoom } = extractRoomContext(roomName);
+    // Extract IDs from room name first, then try dispatch metadata as fallback
+    let { organizationId, agentId, isSIPRoom } = extractRoomContext(roomName);
+
+    // Check dispatch metadata for IDs (outbound handler passes these)
+    let isWarmupPing = false;
+    try {
+      const metadata = ctx.job.metadata ? JSON.parse(ctx.job.metadata) : null;
+      if (metadata) {
+        if (metadata.warmup) {
+          isWarmupPing = true;
+        } else {
+          if (metadata.organizationId) organizationId = metadata.organizationId;
+          if (metadata.agentId) agentId = metadata.agentId;
+          logger.info('📋 Dispatch metadata applied', { organizationId, agentId, callType: metadata.callType });
+        }
+      }
+    } catch {
+      // metadata not JSON or not present — use room name extraction
+    }
+
+    // Handle warmup pings — just connect and disconnect immediately
+    // This keeps the agent container warm without running full call setup
+    if (isWarmupPing) {
+      logger.info('🔥 Warmup ping received — staying alive', { roomName });
+      await ctx.connect();
+      // Disconnect after a brief moment (room will be cleaned up by the ping script)
+      setTimeout(() => {
+        ctx.room?.disconnect().catch(() => {});
+      }, 2000);
+      return;
+    }
 
     // Initialize latency tracking
     const latencyTracker = createLatencyTracker(`pre_${Date.now()}`, {
@@ -303,12 +375,15 @@ export default defineAgent({
     plugins.stt.prewarm(1);  // Pre-warm STT WebSocket connection
 
     // Create voice session
+    // Turn detection requires pre-downloaded ONNX model files.
+    // If unavailable (e.g. Docker build couldn't download from HuggingFace),
+    // we fall back to VAD-only silence detection which still works well.
     const voiceSession = new voice.AgentSession({
       vad: sileroVad,
       stt: plugins.stt,
       llm: plugins.llm,
       tts: plugins.tts,
-      turnDetection: new livekit.turnDetector.MultilingualModel(),
+      ...(turnDetectorAvailable ? { turnDetection: new livekit.turnDetector.MultilingualModel() } : {}),
       voiceOptions: VOICE_OPTIONS,
       connOptions: CONNECTION_OPTIONS,
     });
@@ -602,11 +677,59 @@ onShutdown(async () => {
   logger.info('All sessions flushed');
 });
 
+// ============================================================================
+// DUPLICATE ROOM GUARD
+// ============================================================================
+// Track rooms with active jobs to prevent duplicate agents joining the same room.
+// requestFunc runs in the main worker process, so this Set is shared across all jobs.
+// Room names are unique per call (include random suffix), so long timeouts are safe.
+const activeJobRooms = new Set<string>();
+const rejectedJobIds = new Set<string>();
+
+async function handleJobRequest(req: JobRequest): Promise<void> {
+  const roomName = req.room?.name || '';
+  const jobId = req.id;
+
+  // Silently reject jobs we've already rejected (stops log spam from retries)
+  if (rejectedJobIds.has(jobId)) {
+    await req.reject();
+    return;
+  }
+
+  // Reject if another agent is already active in this room
+  if (activeJobRooms.has(roomName)) {
+    rejectedJobIds.add(jobId);
+    logger.info('🚫 Rejected duplicate job for room (agent already active)', {
+      roomName,
+      jobId,
+    });
+    await req.reject();
+    return;
+  }
+
+  activeJobRooms.add(roomName);
+  logger.info('✅ Accepted job for room', { roomName, jobId });
+  await req.accept();
+
+  // Clean up after call ends. Room names are unique per call (random suffix),
+  // so a generous timeout won't block future calls. 10 minutes covers any call.
+  setTimeout(() => {
+    activeJobRooms.delete(roomName);
+    rejectedJobIds.delete(jobId);
+  }, 600_000); // 10 min safety cleanup
+}
+
+// The agent name MUST match the name used in:
+// 1. createDispatch(roomName, AGENT_NAME) in outbound-handler.ts
+// 2. SIP dispatch rule's roomConfig.agents[].agentName for inbound calls
+// Setting agentName enables explicit dispatch (recommended for telephony).
+const AGENT_NAME = 'sarvam-voice-agent';
+
 // Run the agent with optimized worker options for stability
-// Note: Multi-process mode can cause IPC errors, but it's the default and required
-// Instead, we handle errors gracefully with try-catch and process error handlers
 cli.runApp(new WorkerOptions({ 
   agent: fileURLToPath(import.meta.url),
-  // Limit memory per job to prevent issues
+  agentName: AGENT_NAME,
+  requestFunc: handleJobRequest,
+  numIdleProcesses: 1,
   jobMemoryLimitMB: 1024,
 }));

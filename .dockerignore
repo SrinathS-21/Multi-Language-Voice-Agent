@@ -1,17 +1,17 @@
 # Node.js dependencies
-**/node_modules
+node_modules
 **/npm-debug.log
 **/yarn-error.log
 **/pnpm-debug.log
 
 # Build outputs
-**/dist
-**/build
-**/coverage
+dist
+build
+coverage
 
 # Local environment & config files
-**/.env
-**/.env.local
+.env
+.env.*
 .DS_Store
 
 # Logs & temp files
@@ -19,7 +19,6 @@
 **/*.gz
 **/*.tgz
 **/.tmp
-**/.cache
 
 # Docker artifacts
 Dockerfile*
@@ -30,4 +29,26 @@ Dockerfile*
 .gitignore
 .idea
 .vscode
+
+# Frontend (not needed for agent)
+Frontend
+
+# Documentation
+docs
+*.md
+
+# Scripts (not needed for agent)
+scripts
+
+# KMS
+KMS
+
+# Deployment configs
+render.yaml
+livekit-agent.yaml
+livekit.yaml
+openapi.yaml
+deploy-output.txt
+setup-output.json
+vitest.config.ts
 

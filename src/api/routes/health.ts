@@ -11,6 +11,8 @@
 import { RequestContext, sendJson } from '../server.js';
 import { config } from '../../core/config.js';
 import { isConvexConfigured, getConvexClient } from '../../core/convex-client.js';
+import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk';
+import { logger } from '../../core/logging.js';
 
 const startTime = Date.now();
 
@@ -77,6 +79,49 @@ export async function handleHealthRoutes(ctx: RequestContext): Promise<void> {
         
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end(metrics.join('\n'));
+        return;
+    }
+
+    if (pathname === '/warmup-agent') {
+        const roomName = `warmup-ping-${Date.now()}`;
+        try {
+            const roomService = new RoomServiceClient(
+                config.livekit.url,
+                config.livekit.apiKey,
+                config.livekit.apiSecret
+            );
+            const agentDispatch = new AgentDispatchClient(
+                config.livekit.url,
+                config.livekit.apiKey,
+                config.livekit.apiSecret
+            );
+
+            // Create temp room and dispatch warmup ping
+            await roomService.createRoom({ name: roomName, emptyTimeout: 30 });
+            await agentDispatch.createDispatch(roomName, 'sarvam-voice-agent', {
+                metadata: JSON.stringify({ warmup: true }),
+            });
+
+            logger.info(`Warmup ping sent → ${roomName}`);
+
+            // Clean up room after 10s (non-blocking)
+            setTimeout(async () => {
+                try { await roomService.deleteRoom(roomName); } catch {}
+            }, 10_000);
+
+            sendJson(res, {
+                status: 'ok',
+                message: 'Warmup ping dispatched to LiveKit agent',
+                room: roomName,
+                timestamp: new Date().toISOString(),
+            });
+        } catch (error) {
+            logger.error('Warmup ping failed:', error);
+            sendJson(res, {
+                status: 'error',
+                message: error instanceof Error ? error.message : 'Warmup ping failed',
+            }, 500);
+        }
         return;
     }
 }

@@ -16,15 +16,17 @@
     "warmup": "tsx scripts/warmup-agent.ts",
     "prepare:render": "node scripts/prepare-render.js",
     "health-check": "node scripts/keep-alive.js",
-    "validate": "tsx scripts/validate-environment.ts"
+    "validate": "tsx scripts/validate-environment.ts",
+    "test-dispatch": "tsx scripts/test-dispatch.ts",
+    "warmup-ping": "tsx scripts/warmup-ping.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
     "@convex-dev/rag": "^0.1.0",
-    "@livekit/agents": "^1.0.36",
-    "@livekit/agents-plugin-livekit": "^1.0.36",
-    "@livekit/agents-plugin-openai": "^1.0.36",
-    "@livekit/agents-plugin-silero": "^1.0.36",
+    "@livekit/agents": "^1.0.43",
+    "@livekit/agents-plugin-livekit": "^1.0.43",
+    "@livekit/agents-plugin-openai": "^1.0.43",
+    "@livekit/agents-plugin-silero": "^1.0.43",
     "@livekit/noise-cancellation-node": "^0.1.9",
     "@livekit/rtc-node": "^0.13.24",
     "axios": "^1.7.0",

@@ -176,7 +176,7 @@ export function createApiServer(port: number = 8000): http.Server {
         
         try {
             // Route to appropriate handler
-            if (pathname === '/' || pathname === '/health' || pathname === '/ready' || pathname === '/metrics') {
+            if (pathname === '/' || pathname === '/health' || pathname === '/ready' || pathname === '/metrics' || pathname === '/warmup-agent') {
                 await handleHealthRoutes(ctx);
             } else if (pathname.startsWith('/api/v1/livekit/sip-dispatch')) {
                 // LiveKit SIP dispatch webhook (must come before /api/v1/agents)

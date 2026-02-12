@@ -208,22 +208,12 @@ export class VoiceAssistant extends voice.Agent {
 
     this.ctx?.latencyTracker?.markAgentSpeechStart();
 
-    // Delay to ensure audio path is established
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Brief delay to ensure audio path is established (reduced from 2000ms)
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     const greeting = this.ctx?.greeting || DEFAULT_AGENT.greeting;
-    const splitIndex = greeting.indexOf('.');
-
-    if (splitIndex > -1 && splitIndex < greeting.length - 2) {
-      const part1 = greeting.substring(0, splitIndex + 1).trim();
-      const part2 = greeting.substring(splitIndex + 1).trim();
-
-      if (part1) await this.session.say(part1);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      if (part2) await this.session.say(part2);
-    } else {
-      await this.session.say(greeting);
-    }
+    // Send greeting as a single message for faster delivery
+    await this.session.say(greeting);
   }
 
   async onExit(): Promise<void> {
